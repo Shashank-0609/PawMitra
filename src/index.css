@@ -1,0 +1,32 @@
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Poppins", ui-sans-serif, system-ui, sans-serif;
+  
+  --color-navy: #1e293b;
+  --color-beige: #f5f5f4;
+  --color-accent: #f59e0b; /* Warm orange/gold for accents */
+}
+
+@layer base {
+  body {
+    @apply font-sans text-navy bg-white;
+  }
+}
+
+.glass-card {
+  @apply bg-white/80 backdrop-blur-md border border-white/20 shadow-lg;
+}
+
+.btn-primary {
+  @apply bg-navy text-white px-6 py-3 rounded-xl font-medium transition-all hover:bg-navy/90 active:scale-95;
+}
+
+.btn-secondary {
+  @apply bg-beige text-navy px-6 py-3 rounded-xl font-medium transition-all hover:bg-stone-200 active:scale-95;
+}
+
+.section-padding {
+  @apply py-16 md:py-24 px-6 max-w-7xl mx-auto;
+}
