@@ -2,27 +2,23 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { Menu, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { signOut } from 'firebase/auth';
+import { auth } from '../lib/firebase';
+import { useAuth } from '../lib/AuthContext';
 import logo from './final logo2.png';
 import BrandName from './BrandName';
 
 export default function Navbar() {
   const [isOpen, setIsOpen] = React.useState(false);
-  const [isLoggedIn, setIsLoggedIn] = React.useState(false);
+  const { isLoggedIn } = useAuth();
 
-  React.useEffect(() => {
-    const checkLogin = () => {
-      setIsLoggedIn(localStorage.getItem('isLoggedIn') === 'true');
-    };
-    checkLogin();
-    window.addEventListener('storage', checkLogin);
-    return () => window.removeEventListener('storage', checkLogin);
-  }, []);
-
-  const handleLogout = () => {
-    localStorage.removeItem('isLoggedIn');
-    localStorage.removeItem('userName');
-    setIsLoggedIn(false);
-    setIsOpen(false);
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      setIsOpen(false);
+    } catch (error) {
+      console.error('Error signing out:', error);
+    }
   };
 
   return (

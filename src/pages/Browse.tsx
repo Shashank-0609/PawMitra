@@ -1,14 +1,30 @@
 import React from 'react';
-import { Search, Filter, SlidersHorizontal, ChevronDown } from 'lucide-react';
+import { useLocation } from 'react-router-dom';
+import { Search, Filter, SlidersHorizontal, ChevronDown, Loader2 } from 'lucide-react';
 import HostCard from '../components/HostCard';
 import ChatWindow from '../components/ChatWindow';
 import { AnimatePresence } from 'motion/react';
+import { db } from '../lib/firebase';
+import { collection, query, where, onSnapshot, orderBy } from 'firebase/firestore';
+
+interface Host {
+  id: string;
+  name: string;
+  image: string;
+  rating: number;
+  price: number;
+  location: string;
+  area: string;
+  petTypes: string[];
+  experience: string;
+  isVerified?: boolean;
+}
 
 const ALL_HOSTS = [
   {
     id: '1',
     name: 'Priya Sharma',
-    image: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=400',
+    image: 'https://images.unsplash.com/photo-1589156280159-27698a70f29e?auto=format&fit=crop&q=80&w=400',
     rating: 4.9,
     price: 800,
     location: 'Hyderabad',
@@ -19,7 +35,7 @@ const ALL_HOSTS = [
   {
     id: '2',
     name: 'Rahul Verma',
-    image: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=400',
+    image: 'https://images.unsplash.com/photo-1534308143481-c55f00be8bd7?auto=format&fit=crop&q=80&w=400',
     rating: 4.8,
     price: 650,
     location: 'Hyderabad',
@@ -30,7 +46,7 @@ const ALL_HOSTS = [
   {
     id: '3',
     name: 'Anjali Nair',
-    image: 'https://images.unsplash.com/photo-1554151228-14d9def656e4?auto=format&fit=crop&q=80&w=400',
+    image: 'https://images.unsplash.com/photo-1619194617062-5a61b9c6a049?auto=format&fit=crop&q=80&w=400',
     rating: 5.0,
     price: 1200,
     location: 'Hyderabad',
@@ -41,7 +57,7 @@ const ALL_HOSTS = [
   {
     id: '4',
     name: 'Vikram Singh',
-    image: 'https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?auto=format&fit=crop&q=80&w=400',
+    image: 'https://images.unsplash.com/photo-1566753323558-f4e0952af115?auto=format&fit=crop&q=80&w=400',
     rating: 4.7,
     price: 500,
     location: 'Hyderabad',
@@ -52,7 +68,7 @@ const ALL_HOSTS = [
   {
     id: '5',
     name: 'Sneha Reddy',
-    image: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?auto=format&fit=crop&q=80&w=400',
+    image: 'https://images.unsplash.com/photo-1594744803329-e58b31de8bf5?auto=format&fit=crop&q=80&w=400',
     rating: 4.9,
     price: 900,
     location: 'Hyderabad',
@@ -63,7 +79,7 @@ const ALL_HOSTS = [
   {
     id: '6',
     name: 'Arjun Das',
-    image: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&q=80&w=400',
+    image: 'https://images.unsplash.com/photo-1522529599102-193c0d76b5b6?auto=format&fit=crop&q=80&w=400',
     rating: 4.6,
     price: 750,
     location: 'Hyderabad',
@@ -74,7 +90,7 @@ const ALL_HOSTS = [
   {
     id: '7',
     name: 'Meera Iyer',
-    image: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?auto=format&fit=crop&q=80&w=400',
+    image: 'https://images.unsplash.com/photo-1614283233556-f35b0c801ef1?auto=format&fit=crop&q=80&w=400',
     rating: 4.9,
     price: 1100,
     location: 'Bangalore',
@@ -85,7 +101,7 @@ const ALL_HOSTS = [
   {
     id: '8',
     name: 'Zoya Khan',
-    image: 'https://images.unsplash.com/photo-1531123897727-8f129e1688ce?auto=format&fit=crop&q=80&w=400',
+    image: 'https://images.unsplash.com/photo-1623091423320-5524436a6c11?auto=format&fit=crop&q=80&w=400',
     rating: 4.8,
     price: 700,
     location: 'Mumbai',
@@ -107,7 +123,10 @@ const ALL_HOSTS = [
 ];
 
 export default function Browse() {
+  const location = useLocation();
   const [activeChat, setActiveChat] = React.useState<{ name: string; image: string } | null>(null);
+  const [hosts, setHosts] = React.useState<Host[]>([]);
+  const [loading, setLoading] = React.useState(true);
   
   // Input states (unapplied)
   const [searchTerm, setSearchTerm] = React.useState('');
@@ -122,6 +141,66 @@ export default function Browse() {
     price: 'All',
     pet: 'All'
   });
+
+  React.useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const q = params.get('q') || '';
+    const l = params.get('l') || 'All';
+    
+    setSearchTerm(q);
+    setLocationFilter(l);
+    setAppliedFilters(prev => ({
+      ...prev,
+      searchTerm: q,
+      location: l
+    }));
+  }, [location.search]);
+
+  React.useEffect(() => {
+    // Fetch hosts from Firestore
+    const hostsQuery = query(
+      collection(db, 'hosts'),
+      where('isVerified', '==', true)
+    );
+
+    const unsubscribe = onSnapshot(hostsQuery, (snapshot) => {
+      const fetchedHosts = snapshot.docs.map(doc => {
+        const data = doc.data();
+        const fullLocation = data.location || '';
+        const locationParts = fullLocation.split(',').map((s: string) => s.trim());
+        
+        return {
+          id: doc.id,
+          name: data.fullName,
+          image: data.profilePicUrl || data.houseImages?.[0] || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=400',
+          rating: data.rating || 5.0,
+          price: data.pricePerDay,
+          location: locationParts.length > 1 ? locationParts.slice(1).join(', ') : 'Hyderabad',
+          area: locationParts[0],
+          petTypes: data.petTypes || ['Dog', 'Cat'],
+          experience: data.experience,
+          isVerified: data.isVerified,
+          createdAt: data.createdAt?.toDate() || new Date()
+        };
+      });
+      
+      // Merge with static hosts and sort by date
+      const combined = [...fetchedHosts, ...ALL_HOSTS].sort((a: any, b: any) => {
+        const dateA = a.createdAt || new Date(0);
+        const dateB = b.createdAt || new Date(0);
+        return dateB.getTime() - dateA.getTime();
+      });
+
+      setHosts(combined);
+      setLoading(false);
+    }, (error) => {
+      console.error("Error fetching hosts:", error);
+      setHosts(ALL_HOSTS); // Fallback to static data on error
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
 
   const handleApplyFilters = () => {
     setAppliedFilters({
@@ -146,7 +225,7 @@ export default function Browse() {
   };
 
   const filteredHosts = React.useMemo(() => {
-    return ALL_HOSTS.filter(host => {
+    return hosts.filter(host => {
       const matchesSearch = host.name.toLowerCase().includes(appliedFilters.searchTerm.toLowerCase()) || 
                            host.location.toLowerCase().includes(appliedFilters.searchTerm.toLowerCase()) ||
                            host.area.toLowerCase().includes(appliedFilters.searchTerm.toLowerCase());
@@ -162,7 +241,7 @@ export default function Browse() {
 
       return matchesSearch && matchesLocation && matchesPrice && matchesPet;
     });
-  }, [appliedFilters]);
+  }, [appliedFilters, hosts]);
 
   return (
     <div className="pt-32 pb-20">
@@ -249,7 +328,12 @@ export default function Browse() {
 
         {/* Results Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {filteredHosts.length > 0 ? (
+          {loading ? (
+            <div className="col-span-full py-20 text-center">
+              <Loader2 className="animate-spin mx-auto text-navy mb-4" size={48} />
+              <p className="text-stone-500 font-bold">Finding verified hosts...</p>
+            </div>
+          ) : filteredHosts.length > 0 ? (
             filteredHosts.map((host) => (
               <HostCard 
                 key={host.id}

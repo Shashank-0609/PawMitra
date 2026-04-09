@@ -55,7 +55,7 @@ export default function Footer() {
           </div>
           <div className="flex items-center gap-2 text-stone-400 text-sm">
             <Mail size={16} />
-            <span>hello@pawmitra.com</span>
+            <span>admin@pawmitra.online</span>
           </div>
         </div>
       </div>

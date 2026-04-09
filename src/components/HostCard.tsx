@@ -2,6 +2,7 @@ import React from 'react';
 import { Star, MapPin, MessageSquare } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
+import { useAuth } from '../lib/AuthContext';
 import LoginRequiredModal from './LoginRequiredModal';
 
 interface HostCardProps {
@@ -18,11 +19,11 @@ interface HostCardProps {
 
 export default function HostCard({ id, name, image, rating, price, location, experience, onMessage }: HostCardProps) {
   const navigate = useNavigate();
+  const { isLoggedIn } = useAuth();
   const [showLoginModal, setShowLoginModal] = React.useState(false);
 
   const handleMessageHost = (e: React.MouseEvent) => {
     e.preventDefault();
-    const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true';
     if (isLoggedIn) {
       onMessage?.(name, image);
     } else {
@@ -32,7 +33,6 @@ export default function HostCard({ id, name, image, rating, price, location, exp
 
   const handleViewProfile = (e: React.MouseEvent) => {
     e.preventDefault();
-    const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true';
     if (isLoggedIn) {
       navigate(`/profile/${id}`);
     } else {

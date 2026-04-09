@@ -3,6 +3,7 @@ import { Search, ShieldCheck, Heart, Calendar, ArrowRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import HostCard from '../components/HostCard';
 import BrandName from '../components/BrandName';
+import QuickSearch from '../components/QuickSearch';
 
 const FEATURED_HOSTS = [
   {
@@ -68,13 +69,16 @@ export default function Home() {
             <p className="text-xl text-stone-600 mb-10 leading-relaxed">
               Skip the cold pet hostels. Connect with verified local hosts who will care for your pet like family in a real home environment.
             </p>
-            <div className="flex flex-col sm:flex-row gap-4">
-              <Link to="/browse" className="btn-primary flex items-center justify-center gap-2">
-                Find a Host <ArrowRight size={18} />
-              </Link>
-              <Link to="/become-host" className="btn-secondary flex items-center justify-center">
-                Become a Host
-              </Link>
+            <div className="mb-10">
+              <QuickSearch />
+            </div>
+            <div className="flex flex-col sm:flex-row gap-4 items-center">
+              <span className="text-sm text-stone-400 font-medium">Popular:</span>
+              <div className="flex gap-2">
+                <Link to="/browse?q=Dog" className="text-xs font-bold px-3 py-1 bg-stone-100 rounded-full hover:bg-accent hover:text-white transition-colors">Dogs</Link>
+                <Link to="/browse?q=Cat" className="text-xs font-bold px-3 py-1 bg-stone-100 rounded-full hover:bg-accent hover:text-white transition-colors">Cats</Link>
+                <Link to="/browse?q=Grooming" className="text-xs font-bold px-3 py-1 bg-stone-100 rounded-full hover:bg-accent hover:text-white transition-colors">Grooming</Link>
+              </div>
             </div>
           </motion.div>
         </div>
@@ -138,6 +142,60 @@ export default function Home() {
                 location={`${host.area}, ${host.location}`}
                 experience={host.experience}
               />
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Testimonials */}
+      <section className="bg-beige overflow-hidden">
+        <div className="section-padding">
+          <div className="text-center mb-16">
+            <h2 className="text-3xl md:text-4xl font-bold mb-4">What Pet Parents Say</h2>
+            <p className="text-stone-500 max-w-xl mx-auto">Join thousands of happy pet parents who trust PawMitra for their furry family members.</p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            {[
+              {
+                text: "PawMitra made finding a host so easy. My dog, Bruno, had a blast with Priya. I received photo updates every day!",
+                author: "Karthik R.",
+                role: "Golden Retriever Parent",
+                image: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=100"
+              },
+              {
+                text: "I was worried about leaving my cat for the first time, but Zoya was amazing. The home environment is so much better than a kennel.",
+                author: "Sneha M.",
+                role: "Persian Cat Parent",
+                image: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=100"
+              },
+              {
+                text: "The verification process gives me peace of mind. I know my pet is safe and loved. Highly recommend PawMitra!",
+                author: "Amit V.",
+                role: "Beagle Parent",
+                image: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=100"
+              }
+            ].map((t, i) => (
+              <motion.div 
+                key={i}
+                initial={{ opacity: 0, scale: 0.9 }}
+                whileInView={{ opacity: 1, scale: 1 }}
+                viewport={{ once: true }}
+                transition={{ delay: i * 0.1 }}
+                className="bg-white p-8 rounded-3xl shadow-sm border border-stone-100"
+              >
+                <div className="flex gap-1 text-accent mb-4">
+                  {[...Array(5)].map((_, i) => <Heart key={i} size={16} fill="currentColor" />)}
+                </div>
+                <p className="text-stone-600 mb-8 italic">"{t.text}"</p>
+                <div className="flex items-center gap-4">
+                  <img src={t.image} alt={t.author} className="w-12 h-12 rounded-full object-cover" referrerPolicy="no-referrer" />
+                  <div>
+                    <h4 className="font-bold text-navy">{t.author}</h4>
+                    <p className="text-xs text-stone-400">{t.role}</p>
+                  </div>
+                </div>
+              </motion.div>
             ))}
           </div>
         </div>

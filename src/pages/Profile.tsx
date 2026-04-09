@@ -1,14 +1,21 @@
 import React from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { Star, MapPin, CheckCircle2, ShieldCheck, MessageSquare, Calendar, ArrowLeft, PlusCircle } from 'lucide-react';
+import { Star, MapPin, CheckCircle2, ShieldCheck, MessageSquare, Calendar, ArrowLeft, PlusCircle, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { HOSTS_DATA } from '../constants/hostsData';
+import { HOSTS_DATA, Host } from '../constants/hostsData';
 import BrandName from '../components/BrandName';
 import ChatWindow from '../components/ChatWindow';
+import { db } from '../lib/firebase';
+import { doc, getDoc, collection, addDoc, serverTimestamp, query, where, onSnapshot, orderBy } from 'firebase/firestore';
+import { useAuth } from '../lib/AuthContext';
 
 export default function Profile() {
   const { id } = useParams();
-  const host = id ? HOSTS_DATA[id] : HOSTS_DATA['1'];
+  const { user } = useAuth();
+  const [host, setHost] = React.useState<Host | null>(null);
+  const [reviews, setReviews] = React.useState<any[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [isBooking, setIsBooking] = React.useState(false);
 
   const [startDate, setStartDate] = React.useState('');
   const [endDate, setEndDate] = React.useState('');
@@ -16,7 +23,74 @@ export default function Profile() {
   const [isChatOpen, setIsChatOpen] = React.useState(false);
 
   React.useEffect(() => {
-    if (startDate && endDate) {
+    const fetchHost = async () => {
+      if (!id) return;
+
+      // Check static data first
+      if (HOSTS_DATA[id]) {
+        setHost(HOSTS_DATA[id]);
+        setLoading(false);
+        return;
+      }
+
+      // Fetch from Firestore
+      try {
+        const hostDoc = await getDoc(doc(db, 'hosts', id));
+        if (hostDoc.exists()) {
+          const data = hostDoc.data();
+          setHost({
+            id: hostDoc.id,
+            name: data.fullName,
+            rating: data.rating || 5.0,
+            reviewsCount: data.reviewsCount || 0,
+            price: data.pricePerDay,
+            location: data.location,
+            about: data.aboutMe || data.experience,
+            experience: data.experience,
+            images: [data.profilePicUrl, ...(data.houseImages || [])].filter(Boolean),
+            amenities: data.amenities || [],
+            reviews: data.reviews || []
+          });
+        }
+      } catch (error) {
+        console.error("Error fetching host profile:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchHost();
+  }, [id]);
+
+  React.useEffect(() => {
+    if (!id || !user) return;
+
+    const q = query(
+      collection(db, 'reviews'),
+      where('hostId', '==', id)
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const reviewsData = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      // Sort in memory to avoid requiring a composite index
+      reviewsData.sort((a: any, b: any) => {
+        const timeA = a.createdAt?.seconds || 0;
+        const timeB = b.createdAt?.seconds || 0;
+        return timeB - timeA;
+      });
+      setReviews(reviewsData);
+    }, (error) => {
+      console.error("Profile reviews listener error:", error);
+    });
+
+    return () => unsubscribe();
+  }, [id, user]);
+
+  React.useEffect(() => {
+    if (startDate && endDate && host) {
       const start = new Date(startDate);
       const end = new Date(endDate);
       const diffTime = Math.abs(end.getTime() - start.getTime());
@@ -25,7 +99,62 @@ export default function Profile() {
     } else {
       setTotalPrice(0);
     }
-  }, [startDate, endDate, host.price]);
+  }, [startDate, endDate, host]);
+
+  const handleRequestBooking = async () => {
+    if (!user) {
+      alert('Please login to request a booking');
+      return;
+    }
+    if (!startDate || !endDate) {
+      alert('Please select dates');
+      return;
+    }
+    if (!host) return;
+
+    setIsBooking(true);
+    try {
+      const bookingData = {
+        hostId: host.id,
+        hostName: host.name,
+        guestId: user.uid,
+        guestName: user.displayName || 'Guest',
+        startDate,
+        endDate,
+        dates: `${startDate} - ${endDate}`,
+        totalPrice,
+        status: 'pending',
+        createdAt: serverTimestamp(),
+        petType: 'Dog (Small - up to 10kg)' // Default or from a state if implemented
+      };
+
+      await addDoc(collection(db, 'booking_requests'), bookingData);
+      alert('Booking request sent successfully! The host will review it soon.');
+    } catch (error) {
+      console.error("Error requesting booking:", error);
+      alert('Failed to send booking request. Please try again.');
+    } finally {
+      setIsBooking(false);
+    }
+  };
+
+  const stats = React.useMemo(() => {
+    if (reviews.length === 0) return { rating: 5.0, count: 0 };
+    const total = reviews.reduce((acc, r) => acc + (r.rating || 0), 0);
+    return {
+      rating: (total / reviews.length).toFixed(1),
+      count: reviews.length
+    };
+  }, [reviews]);
+
+  if (loading) {
+    return (
+      <div className="pt-32 flex flex-col items-center justify-center min-h-[60vh]">
+        <Loader2 className="animate-spin text-navy mb-4" size={48} />
+        <p className="text-stone-500 font-bold">Loading profile...</p>
+      </div>
+    );
+  }
 
   if (!host) return <div className="pt-32 text-center">Host not found</div>;
 
@@ -77,8 +206,8 @@ export default function Profile() {
                 <div className="flex flex-wrap items-center gap-4 text-stone-500">
                   <div className="flex items-center gap-1">
                     <Star size={18} className="text-accent fill-accent" />
-                    <span className="font-bold text-navy">{host.rating}</span>
-                    <span>({host.reviewsCount} reviews)</span>
+                    <span className="font-bold text-navy">{stats.rating}</span>
+                    <span>({stats.count} reviews)</span>
                   </div>
                   <div className="flex items-center gap-1">
                     <MapPin size={18} />
@@ -144,24 +273,33 @@ export default function Profile() {
                   </button>
                 </div>
                 <div className="space-y-8">
-                  {host.reviews.map((review, i) => (
-                    <div key={i} className="bg-white p-6 rounded-2xl border border-stone-100 shadow-sm">
-                      <div className="flex justify-between items-center mb-4">
-                        <div className="font-bold text-lg">{review.name}</div>
-                        <div className="text-stone-400 text-sm">{review.date}</div>
-                      </div>
-                      <div className="flex gap-1 mb-4">
-                        {[...Array(5)].map((_, starIdx) => (
-                          <Star 
-                            key={starIdx} 
-                            size={16} 
-                            className={starIdx < review.rating ? "text-accent fill-accent" : "text-stone-200"} 
-                          />
-                        ))}
-                      </div>
-                      <p className="text-stone-600 leading-relaxed italic">"{review.comment}"</p>
+                  {reviews.length === 0 ? (
+                    <div className="text-center py-12 bg-stone-50 rounded-3xl border border-dashed border-stone-200">
+                      <Star className="mx-auto text-stone-300 mb-4" size={48} />
+                      <p className="text-stone-500 font-medium">No reviews yet. Be the first to leave one!</p>
                     </div>
-                  ))}
+                  ) : (
+                    reviews.map((review, i) => (
+                      <div key={review.id || i} className="bg-white p-6 rounded-2xl border border-stone-100 shadow-sm">
+                        <div className="flex justify-between items-center mb-4">
+                          <div className="font-bold text-lg">{review.ownerName || review.name}</div>
+                          <div className="text-stone-400 text-sm">
+                            {review.createdAt?.toDate ? new Date(review.createdAt.toDate()).toLocaleDateString() : review.date || 'Recent'}
+                          </div>
+                        </div>
+                        <div className="flex gap-1 mb-4">
+                          {[...Array(5)].map((_, starIdx) => (
+                            <Star 
+                              key={starIdx} 
+                              size={16} 
+                              className={starIdx < review.rating ? "text-accent fill-accent" : "text-stone-200"} 
+                            />
+                          ))}
+                        </div>
+                        <p className="text-stone-600 leading-relaxed italic">"{review.reviewText || review.comment}"</p>
+                      </div>
+                    ))
+                  )}
                 </div>
               </section>
             </div>
@@ -170,19 +308,19 @@ export default function Profile() {
           {/* Right Column - Booking Card */}
           <div className="lg:col-span-4">
             <div className="sticky top-32 bg-white p-8 md:p-10 rounded-[2.5rem] shadow-2xl border border-stone-100">
-              <div className="flex justify-between items-center mb-10">
-                <div className="flex flex-col">
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-4xl font-bold text-navy">₹{host.price}</span>
-                    <span className="text-stone-400 font-medium text-lg">/ day</span>
+                <div className="flex justify-between items-center mb-10">
+                  <div className="flex flex-col">
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-4xl font-bold text-navy">₹{host.price}</span>
+                      <span className="text-stone-400 font-medium text-lg">/ day</span>
+                    </div>
+                    <span className="text-stone-400 text-xs font-bold uppercase tracking-wider mt-1">Starting Price</span>
                   </div>
-                  <span className="text-stone-400 text-xs font-bold uppercase tracking-wider mt-1">Starting Price</span>
+                  <div className="flex items-center gap-2 bg-amber-50 px-4 py-2 rounded-2xl border border-amber-100">
+                    <Star size={20} className="text-accent fill-accent" />
+                    <span className="font-bold text-navy text-lg">{stats.rating}</span>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2 bg-amber-50 px-4 py-2 rounded-2xl border border-amber-100">
-                  <Star size={20} className="text-accent fill-accent" />
-                  <span className="font-bold text-navy text-lg">{host.rating}</span>
-                </div>
-              </div>
 
               <div className="space-y-4 mb-10">
                 <div className="grid grid-cols-2 gap-3">
@@ -237,8 +375,12 @@ export default function Profile() {
               )}
 
               <div className="space-y-3">
-                <button className="w-full btn-primary py-5 text-lg font-bold shadow-xl shadow-navy/20 hover:scale-[1.02] active:scale-[0.98] transition-all">
-                  Request Booking
+                <button 
+                  onClick={handleRequestBooking}
+                  disabled={isBooking}
+                  className="w-full btn-primary py-5 text-lg font-bold shadow-xl shadow-navy/20 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50"
+                >
+                  {isBooking ? 'Sending Request...' : 'Request Booking'}
                 </button>
                 
                 <button 
