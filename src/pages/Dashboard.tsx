@@ -1,10 +1,10 @@
 import React from 'react';
-import { LayoutDashboard, Calendar, History, Star, TrendingUp, Users, MessageSquare, Check, X, Send, UserCircle, Minimize2, AlertCircle, Pencil, Save, MapPin, IndianRupee } from 'lucide-react';
+import { LayoutDashboard, Calendar, History, Star, TrendingUp, Users, MessageSquare, Check, X, Send, UserCircle, Minimize2, AlertCircle, Pencil, Save, MapPin, IndianRupee, Camera, Upload, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '../lib/AuthContext';
 import ChatWindow from '../components/ChatWindow';
-import { db, storage } from '../lib/firebase';
+import { db, storage, handleFirestoreError, OperationType } from '../lib/firebase';
 import { collection, addDoc, serverTimestamp, doc, updateDoc, onSnapshot, query, orderBy, where } from 'firebase/firestore';
 import { ref, uploadString, getDownloadURL } from 'firebase/storage';
 import { GoogleGenAI } from "@google/genai";
@@ -148,6 +148,8 @@ function OwnerDashboard({ onMessageHost }: OwnerDashboardProps) {
     const unsub = onSnapshot(q, (snapshot) => {
       const myReviews = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
       setReviewsGiven(myReviews);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, 'reviews');
     });
 
     return () => unsub();
@@ -263,6 +265,10 @@ function HostDashboard() {
   const [isEditing, setIsEditing] = React.useState(false);
   const [editForm, setEditForm] = React.useState<any>(null);
   const [isUpdating, setIsUpdating] = React.useState(false);
+  const [newImageFile, setNewImageFile] = React.useState<File | null>(null);
+  const [imagePreview, setImagePreview] = React.useState<string | null>(null);
+
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   const stats = React.useMemo(() => ({
     petsHandled: requests.filter(r => r.status === 'accepted').length,
@@ -283,8 +289,9 @@ function HostDashboard() {
       if (!snapshot.empty) {
         const data = { id: snapshot.docs[0].id, ...snapshot.docs[0].data() };
         setHostProfile(data);
-        setEditForm(data);
       }
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, 'hosts');
     });
 
     const q = query(
@@ -302,8 +309,7 @@ function HostDashboard() {
       setRequests(myRequests);
       setLoadingRequests(false);
     }, (error) => {
-      console.error("HostDashboard requests listener error:", error);
-      setLoadingRequests(false);
+      handleFirestoreError(error, OperationType.GET, 'booking_requests');
     });
 
     return () => {
@@ -329,9 +335,7 @@ function HostDashboard() {
       });
       setReviews(myReviews);
     }, (error) => {
-      if (error.code !== 'permission-denied') {
-        console.error("HostDashboard reviews listener error:", error);
-      }
+      handleFirestoreError(error, OperationType.GET, 'reviews');
     });
 
     return () => unsub();
@@ -343,6 +347,25 @@ function HostDashboard() {
 
     setIsUpdating(true);
     try {
+      let profilePicUrl = editForm.profilePicUrl;
+
+      // Handle Image Upload if a new file is selected
+      if (newImageFile) {
+        const storageRef = ref(storage, `hosts/${user?.uid}/profile_${Date.now()}`);
+        
+        // Convert File to base64 for uploadString or use uploadBytes
+        // Using FileReader to get base64 for simplicity with existing imports
+        const reader = new FileReader();
+        const base64Promise = new Promise<string>((resolve) => {
+          reader.onload = (e) => resolve(e.target?.result as string);
+          reader.readAsDataURL(newImageFile);
+        });
+        
+        const base64String = await base64Promise;
+        const uploadTask = await uploadString(storageRef, base64String, 'data_url');
+        profilePicUrl = await getDownloadURL(uploadTask.ref);
+      }
+
       const hostDocRef = doc(db, 'hosts', hostProfile.id);
       const updateData = {
         fullName: editForm.fullName,
@@ -351,23 +374,48 @@ function HostDashboard() {
         pricePerDay: Number(editForm.pricePerDay),
         location: editForm.location,
         petTypes: editForm.petTypes,
-        amenities: editForm.amenities,
+        amenities: editForm.amenities || [],
+        profilePicUrl: profilePicUrl,
         updatedAt: serverTimestamp()
       };
 
       await updateDoc(hostDocRef, updateData);
       
-      // Also update in users/files if it exists
-      // This is more complex since we don't have the doc ID easily, 
-      // but the main 'hosts' collection is what matters for the Browse page.
-      
       setIsEditing(false);
+      setNewImageFile(null);
+      setImagePreview(null);
       alert('Profile updated successfully!');
     } catch (error) {
       console.error("Update Profile Error:", error);
       alert('Failed to update profile.');
     } finally {
       setIsUpdating(false);
+    }
+  };
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setNewImageFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleDeletePhoto = () => {
+    if (window.confirm('Are you sure you want to delete your profile photo?')) {
+      setNewImageFile(null);
+      setImagePreview(null);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+      setEditForm((prev: any) => ({
+        ...prev,
+        profilePicUrl: ''
+      }));
     }
   };
 
@@ -472,12 +520,19 @@ function HostDashboard() {
         <div className="bg-white rounded-[2.5rem] shadow-xl border border-stone-100 overflow-hidden">
           <div className="p-8 md:p-12">
             <div className="flex flex-col md:flex-row gap-10 items-start">
-              <div className="w-40 h-40 rounded-3xl overflow-hidden shadow-lg shrink-0">
-                <img 
-                  src={hostProfile.profilePicUrl || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=400'} 
-                  alt={hostProfile.fullName}
-                  className="w-full h-full object-cover"
-                />
+              <div className="w-40 h-40 rounded-3xl overflow-hidden shadow-lg shrink-0 bg-stone-50 flex items-center justify-center">
+                {hostProfile.profilePicUrl ? (
+                  <img 
+                    src={hostProfile.profilePicUrl}
+                    alt={hostProfile.fullName}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className="flex flex-col items-center justify-center text-stone-200">
+                    <UserCircle size={80} />
+                    <span className="text-[10px] font-bold uppercase mt-2">No Profile Photo</span>
+                  </div>
+                )}
               </div>
               <div className="flex-1">
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
@@ -495,14 +550,24 @@ function HostDashboard() {
                       </div>
                     </div>
                   </div>
-                  {hostProfile.isVerified && (
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                    <div className={`px-4 py-1.5 rounded-full text-xs font-bold uppercase flex items-center gap-1.5 ${hostProfile.isVerified ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-amber-50 text-amber-600 border border-amber-100'}`}>
+                      {hostProfile.isVerified ? (
+                        <><Check size={14} /> Verified Host</>
+                      ) : (
+                        <><AlertCircle size={14} /> Pending Verification</>
+                      )}
+                    </div>
                     <button 
-                      onClick={() => setIsEditing(true)}
+                      onClick={() => {
+                        setEditForm({ ...hostProfile });
+                        setIsEditing(true);
+                      }}
                       className="btn-secondary flex items-center gap-2 px-6 py-3"
                     >
                       <Pencil size={18} /> Edit Profile
                     </button>
-                  )}
+                  </div>
                 </div>
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -668,85 +733,139 @@ function HostDashboard() {
       {/* Edit Profile Modal */}
       <AnimatePresence>
         {isEditing && (
-          <div className="fixed inset-0 z-[110] flex items-center justify-center p-6 bg-black/60 backdrop-blur-sm overflow-y-auto">
+          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm overflow-y-auto">
             <motion.div 
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 20 }}
-              className="bg-white rounded-[2.5rem] max-w-2xl w-full p-8 md:p-12 shadow-2xl my-8"
+              className="bg-white rounded-[2rem] max-w-xl w-full p-6 md:p-8 shadow-2xl my-4 max-h-[90vh] overflow-y-auto"
             >
-              <div className="flex justify-between items-center mb-8">
-                <h2 className="text-3xl font-bold">Edit Host Profile</h2>
+              <div className="flex justify-between items-center mb-6">
+                <div>
+                  <h2 className="text-2xl font-bold">Edit Profile</h2>
+                  <p className="text-stone-400 text-xs">Update your host information</p>
+                </div>
                 <button 
-                  onClick={() => setIsEditing(false)}
+                  onClick={() => {
+                    setIsEditing(false);
+                    setNewImageFile(null);
+                    setImagePreview(null);
+                  }}
                   className="p-2 hover:bg-stone-100 rounded-full transition-colors"
                 >
-                  <X size={24} />
+                  <X size={20} />
                 </button>
               </div>
 
-              <form onSubmit={handleUpdateProfile} className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold uppercase text-stone-400">Full Name</label>
+              <form onSubmit={handleUpdateProfile} className="space-y-5">
+                {/* Profile Pic Upload */}
+                <div className="flex flex-col items-center gap-4 py-2 border-b border-stone-100 mb-4">
+                  <div className="relative group">
+                    <div className="w-24 h-24 rounded-2xl overflow-hidden shadow-md ring-4 ring-stone-50 bg-stone-50 flex items-center justify-center">
+                      {imagePreview || editForm.profilePicUrl ? (
+                        <img 
+                          src={imagePreview || editForm.profilePicUrl} 
+                          alt="Preview"
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="flex flex-col items-center justify-center text-stone-300">
+                          <UserCircle size={48} />
+                          <span className="text-[8px] font-bold uppercase mt-1">No Photo</span>
+                        </div>
+                      )}
+                    </div>
+                    <button 
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="absolute -bottom-2 -right-2 w-9 h-9 bg-navy text-white rounded-lg flex items-center justify-center shadow-lg hover:scale-110 active:scale-95 transition-all z-20"
+                      title="Upload new photo"
+                    >
+                      <Camera size={18} />
+                    </button>
+                    {(editForm.profilePicUrl || imagePreview) && (
+                      <button 
+                        type="button"
+                        onClick={handleDeletePhoto}
+                        className="absolute -top-2 -right-2 w-9 h-9 bg-red-500 text-white rounded-lg flex items-center justify-center shadow-lg hover:scale-110 active:scale-95 transition-all z-20"
+                        title="Delete current photo"
+                      >
+                        <Trash2 size={18} />
+                      </button>
+                    )}
+                    <input 
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={handleImageChange}
+                      className="hidden"
+                    />
+                  </div>
+                  <span className="text-[10px] font-bold uppercase text-stone-400">Profile Picture</span>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold uppercase text-stone-400 ml-1">Full Name</label>
                     <input 
                       type="text" 
                       required
                       value={editForm.fullName}
                       onChange={(e) => setEditForm({...editForm, fullName: e.target.value})}
-                      className="w-full p-4 bg-stone-50 rounded-xl border-none focus:ring-2 focus:ring-navy/10" 
+                      className="w-full p-3 bg-stone-50 rounded-xl border-none focus:ring-2 focus:ring-navy/10 text-sm" 
                     />
                   </div>
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold uppercase text-stone-400">Price per Day (₹)</label>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold uppercase text-stone-400 ml-1">Price per Day (₹)</label>
                     <input 
                       type="number" 
                       required
                       value={editForm.pricePerDay}
                       onChange={(e) => setEditForm({...editForm, pricePerDay: e.target.value})}
-                      className="w-full p-4 bg-stone-50 rounded-xl border-none focus:ring-2 focus:ring-navy/10" 
+                      className="w-full p-3 bg-stone-50 rounded-xl border-none focus:ring-2 focus:ring-navy/10 text-sm" 
                     />
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <label className="text-xs font-bold uppercase text-stone-400">Location</label>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold uppercase text-stone-400 ml-1">Location</label>
                   <input 
                     type="text" 
                     required
                     value={editForm.location}
                     onChange={(e) => setEditForm({...editForm, location: e.target.value})}
-                    className="w-full p-4 bg-stone-50 rounded-xl border-none focus:ring-2 focus:ring-navy/10" 
+                    className="w-full p-3 bg-stone-50 rounded-xl border-none focus:ring-2 focus:ring-navy/10 text-sm" 
                   />
                 </div>
 
-                <div className="space-y-2">
-                  <label className="text-xs font-bold uppercase text-stone-400">About Me</label>
-                  <textarea 
-                    required
-                    value={editForm.aboutMe}
-                    onChange={(e) => setEditForm({...editForm, aboutMe: e.target.value})}
-                    rows={4}
-                    className="w-full p-4 bg-stone-50 rounded-xl border-none focus:ring-2 focus:ring-navy/10 resize-none"
-                  />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold uppercase text-stone-400 ml-1">About Me</label>
+                    <textarea 
+                      required
+                      value={editForm.aboutMe}
+                      onChange={(e) => setEditForm({...editForm, aboutMe: e.target.value})}
+                      rows={3}
+                      className="w-full p-3 bg-stone-50 rounded-xl border-none focus:ring-2 focus:ring-navy/10 resize-none text-sm leading-relaxed"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold uppercase text-stone-400 ml-1">Experience</label>
+                    <textarea 
+                      required
+                      value={editForm.experience}
+                      onChange={(e) => setEditForm({...editForm, experience: e.target.value})}
+                      rows={3}
+                      className="w-full p-3 bg-stone-50 rounded-xl border-none focus:ring-2 focus:ring-navy/10 resize-none text-sm leading-relaxed"
+                    />
+                  </div>
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-xs font-bold uppercase text-stone-400">Experience</label>
-                  <textarea 
-                    required
-                    value={editForm.experience}
-                    onChange={(e) => setEditForm({...editForm, experience: e.target.value})}
-                    rows={4}
-                    className="w-full p-4 bg-stone-50 rounded-xl border-none focus:ring-2 focus:ring-navy/10 resize-none"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-xs font-bold uppercase text-stone-400">Pet Types</label>
-                  <div className="flex flex-wrap gap-3">
+                  <label className="text-[10px] font-bold uppercase text-stone-400 ml-1">Pet Types</label>
+                  <div className="flex flex-wrap gap-4 px-1">
                     {['Dog', 'Cat', 'Bird', 'Rabbit'].map((type) => (
-                      <label key={type} className="flex items-center gap-2 cursor-pointer">
+                      <label key={type} className="flex items-center gap-2 cursor-pointer group">
                         <input 
                           type="checkbox"
                           checked={editForm.petTypes.includes(type)}
@@ -756,31 +875,35 @@ function HostDashboard() {
                               : editForm.petTypes.filter((t: string) => t !== type);
                             setEditForm({...editForm, petTypes: newTypes});
                           }}
-                          className="w-5 h-5 rounded border-stone-300 text-navy focus:ring-navy"
+                          className="w-4 h-4 rounded border-stone-300 text-navy focus:ring-navy cursor-pointer"
                         />
-                        <span className="text-sm text-stone-600">{type}</span>
+                        <span className="text-xs text-stone-600 font-medium group-hover:text-navy transition-colors">{type}</span>
                       </label>
                     ))}
                   </div>
                 </div>
 
-                <div className="flex gap-4 pt-4">
+                <div className="flex gap-3 pt-2">
                   <button 
                     type="button"
-                    onClick={() => setIsEditing(false)}
-                    className="flex-1 py-4 bg-stone-100 text-stone-600 rounded-xl font-bold hover:bg-stone-200 transition-colors"
+                    onClick={() => {
+                      setIsEditing(false);
+                      setNewImageFile(null);
+                      setImagePreview(null);
+                    }}
+                    className="flex-1 py-3 bg-stone-100 text-stone-600 rounded-xl font-bold hover:bg-stone-200 transition-colors text-sm"
                   >
                     Cancel
                   </button>
                   <button 
                     type="submit"
                     disabled={isUpdating}
-                    className="flex-1 py-4 bg-navy text-white rounded-xl font-bold hover:bg-navy/90 transition-colors shadow-lg shadow-navy/20 flex items-center justify-center gap-2"
+                    className="flex-1 py-3 bg-navy text-white rounded-xl font-bold hover:bg-navy/90 transition-all shadow-lg shadow-navy/20 flex items-center justify-center gap-2 text-sm"
                   >
                     {isUpdating ? (
                       <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
                     ) : (
-                      <><Save size={20} /> Save Changes</>
+                      <><Save size={18} /> Save Changes</>
                     )}
                   </button>
                 </div>

@@ -9,7 +9,7 @@ const FEATURED_HOSTS = [
   {
     id: '1',
     name: 'Priya Sharma',
-    image: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=400',
+    image: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=400',
     rating: 4.9,
     price: 800,
     location: 'Hyderabad',

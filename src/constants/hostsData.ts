@@ -23,7 +23,7 @@ export const HOSTS_DATA: Record<string, Host> = {
     about: "Hi! I'm Priya, a lifelong pet lover and a professional freelance designer. I work from home, which means your furry friend will have constant company and supervision. I live in a spacious independent house with a fully fenced backyard where pets can run and play safely.",
     experience: '5+ years of active pet hosting. Experienced in administering oral medications and handling special dietary needs.',
     images: [
-      'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=800',
+      'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=800',
       'https://images.unsplash.com/photo-1516733725897-1aa73b87c8e8?auto=format&fit=crop&q=80&w=800',
       'https://images.unsplash.com/photo-1601758228041-f3b2795255f1?auto=format&fit=crop&q=80&w=800'
     ],

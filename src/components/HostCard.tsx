@@ -1,5 +1,5 @@
 import React from 'react';
-import { Star, MapPin, MessageSquare } from 'lucide-react';
+import { Star, MapPin, MessageSquare, UserCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { useAuth } from '../lib/AuthContext';
@@ -46,13 +46,20 @@ export default function HostCard({ id, name, image, rating, price, location, exp
         whileHover={{ y: -8 }}
         className="bg-white rounded-2xl overflow-hidden shadow-sm border border-stone-100 group flex flex-col h-full"
       >
-        <div className="relative aspect-[4/5] overflow-hidden">
-          <img 
-            src={image} 
-            alt={name} 
-            className="w-full h-full object-cover object-center group-hover:scale-110 transition-transform duration-500"
-            referrerPolicy="no-referrer"
-          />
+        <div className="relative aspect-[4/5] overflow-hidden bg-stone-50 flex items-center justify-center">
+          {image ? (
+            <img 
+              src={image} 
+              alt={name} 
+              className="w-full h-full object-cover object-center group-hover:scale-110 transition-transform duration-500"
+              referrerPolicy="no-referrer"
+            />
+          ) : (
+            <div className="flex flex-col items-center justify-center text-stone-200">
+              <UserCircle size={80} />
+              <span className="text-[10px] font-bold uppercase mt-2 tracking-widest text-stone-300">Profile Placeholder</span>
+            </div>
+          )}
           <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full flex items-center gap-1 shadow-sm">
             <Star size={14} className="text-accent fill-accent" />
             <span className="text-xs font-bold">{rating}</span>

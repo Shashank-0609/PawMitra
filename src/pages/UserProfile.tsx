@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { signOut, deleteUser, updateProfile } from 'firebase/auth';
 import { doc, getDoc, updateDoc, deleteDoc, collection, addDoc, onSnapshot, query, serverTimestamp, setDoc, where, orderBy } from 'firebase/firestore';
 import { ref, uploadString, getDownloadURL, deleteObject } from 'firebase/storage';
-import { auth, db, storage } from '../lib/firebase';
+import { auth, db, storage, handleFirestoreError, OperationType } from '../lib/firebase';
 import { useAuth } from '../lib/AuthContext';
 import MedicalRecords from '../components/MedicalRecords';
 
@@ -101,7 +101,7 @@ export default function UserProfile() {
       })) as Pet[];
       setPets(petsData);
     }, (error) => {
-      console.error("UserProfile pets listener error:", error);
+      handleFirestoreError(error, OperationType.GET, `users/${user.uid}/pets`);
     });
 
     return () => unsubscribe();
@@ -118,7 +118,7 @@ export default function UserProfile() {
       })) as PastStay[];
       setPastStays(staysData);
     }, (error) => {
-      console.error("UserProfile pastStays listener error:", error);
+      handleFirestoreError(error, OperationType.GET, `users/${user.uid}/past_stays`);
     });
 
     return () => unsubscribe();
@@ -135,7 +135,7 @@ export default function UserProfile() {
       const requestsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setHostRequests(requestsData);
     }, (error) => {
-      console.error("UserProfile hostRequests listener error:", error);
+      handleFirestoreError(error, OperationType.GET, 'booking_requests');
     });
 
     return () => unsubscribe();
@@ -158,9 +158,7 @@ export default function UserProfile() {
       });
       setHostReviews(reviewsData);
     }, (error) => {
-      if (error.code !== 'permission-denied') {
-        console.error("UserProfile hostReviews listener error:", error);
-      }
+      handleFirestoreError(error, OperationType.GET, 'reviews');
     });
 
     return () => unsubscribe();

@@ -1,6 +1,6 @@
 import React from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { Star, MapPin, CheckCircle2, ShieldCheck, MessageSquare, Calendar, ArrowLeft, PlusCircle, Loader2 } from 'lucide-react';
+import { Star, MapPin, CheckCircle2, ShieldCheck, MessageSquare, Calendar, ArrowLeft, PlusCircle, Loader2, UserCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { HOSTS_DATA, Host } from '../constants/hostsData';
 import BrandName from '../components/BrandName';
@@ -169,13 +169,20 @@ export default function Profile() {
           {/* Left Column - Host Image */}
           <div className="lg:col-span-4">
             <div className="sticky top-32">
-              <div className="relative aspect-[3/4] rounded-[2rem] overflow-hidden shadow-2xl mb-8">
-                <img 
-                  src={host.images[0]} 
-                  alt={host.name} 
-                  className="w-full h-full object-cover"
-                  referrerPolicy="no-referrer"
-                />
+              <div className="relative aspect-[3/4] rounded-[2rem] overflow-hidden shadow-2xl mb-8 bg-stone-50 flex items-center justify-center">
+                {host.images && host.images.length > 0 ? (
+                  <img 
+                    src={host.images[0]} 
+                    alt={host.name} 
+                    className="w-full h-full object-cover"
+                    referrerPolicy="no-referrer"
+                  />
+                ) : (
+                  <div className="flex flex-col items-center justify-center text-stone-200">
+                    <UserCircle size={120} />
+                    <span className="text-xs font-bold uppercase mt-4 tracking-widest text-stone-300">Profile Placeholder</span>
+                  </div>
+                )}
               </div>
               
               <div className="hidden lg:block p-8 bg-stone-50 rounded-[2rem] border border-stone-100">

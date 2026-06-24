@@ -1,0 +1,108 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global safety net: default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Global helpers
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // Rules for 'hosts' collection
+    match /hosts/{hostId} {
+      // Anyone can read host listings (Browse and Host Profile pages)
+      allow read: if true;
+      
+      // Creating a host profile requires the user to be signed in
+      // and the host profile's userId to match request.auth.uid.
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      
+      // Updating requires being signed in and being the owner of the profile
+      allow update: if isSignedIn() && resource.data.userId == request.auth.uid;
+      
+      // Delete requires being signed in and the owner
+      allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+    }
+
+    // Rules for 'booking_requests' collection
+    match /booking_requests/{requestId} {
+      // Allow reading booking requests if user is signed in and is either the host or the guest
+      allow read: if isSignedIn() && (
+        resource.data.guestId == request.auth.uid || 
+        resource.data.hostId == request.auth.uid
+      );
+      
+      // Anyone who is signed in can create booking requests
+      allow create: if isSignedIn() && request.resource.data.guestId == request.auth.uid;
+      
+      // Anyone who is signed in and is the host or the guest can update booking requests
+      allow update: if isSignedIn() && (
+        resource.data.guestId == request.auth.uid || 
+        resource.data.hostId == request.auth.uid
+      );
+      
+      allow delete: if isSignedIn() && resource.data.guestId == request.auth.uid;
+    }
+
+    // Rules for 'reviews' collection
+    match /reviews/{reviewId} {
+      // Anyone can read reviews
+      allow read: if true;
+      
+      // Anyone authenticated can create reviews
+      allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
+      allow update, delete: if isSignedIn() && resource.data.ownerId == request.auth.uid;
+    }
+
+    // Rules for 'reviews_for_particular_hosts' subcollection
+    match /reviews_for_particular_hosts/{hostId}/reviews/{reviewId} {
+      allow read: if true;
+      allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
+      allow update, delete: if isSignedIn() && resource.data.ownerId == request.auth.uid;
+    }
+
+    // Rules for nested 'users' collections and subcollections
+    match /users/{userId} {
+      allow read, write: if isOwner(userId);
+
+      match /files/{fileId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      match /pets/{petId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      match /past_stays/{stayId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      match /review_for_hosts_from_owners/{reviewId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      match /newHostsProfilePic/{picId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      match /booking_requests/{requestId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      match /rejected_requests/{requestId} {
+        allow read, write: if isOwner(userId);
+      }
+    }
+  }
+}

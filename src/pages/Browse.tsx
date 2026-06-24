@@ -172,7 +172,7 @@ export default function Browse() {
         return {
           id: doc.id,
           name: data.fullName,
-          image: data.profilePicUrl || data.houseImages?.[0] || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=400',
+          image: data.profilePicUrl || data.houseImages?.[0] || '',
           rating: data.rating || 5.0,
           price: data.pricePerDay,
           location: locationParts.length > 1 ? locationParts.slice(1).join(', ') : 'Hyderabad',
