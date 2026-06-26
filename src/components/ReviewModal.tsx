@@ -28,9 +28,9 @@ export default function ReviewModal({ hostId, hostName, onClose, onSuccess }: Re
     setIsSubmitting(true);
     try {
       // 1. Generate AI Summary
-      const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY as string });
+      const genAI = new GoogleGenAI({ apiKey: (import.meta.env.VITE_GEMINI_API_KEY || "") as string });
       const model = genAI.models.generateContent({
-        model: "gemini-3-flash-preview",
+        model: "gemini-2.0-flash",
         contents: `Summarize this pet parent's review for host ${hostName}. 
         Rating: ${rating}/5 stars.
         Review: "${reviewText}"
