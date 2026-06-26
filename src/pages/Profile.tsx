@@ -8,6 +8,7 @@ import ChatWindow from '../components/ChatWindow';
 import { db } from '../lib/firebase';
 import { doc, getDoc, collection, addDoc, serverTimestamp, query, where, onSnapshot, orderBy } from 'firebase/firestore';
 import { useAuth } from '../lib/AuthContext';
+import ReviewModal from '../components/ReviewModal';
 
 export default function Profile() {
   const { id } = useParams();
@@ -21,6 +22,7 @@ export default function Profile() {
   const [endDate, setEndDate] = React.useState('');
   const [totalPrice, setTotalPrice] = React.useState(0);
   const [isChatOpen, setIsChatOpen] = React.useState(false);
+  const [showReviewModal, setShowReviewModal] = React.useState(false);
 
   React.useEffect(() => {
     const fetchHost = async () => {
@@ -275,7 +277,10 @@ export default function Profile() {
               <section>
                 <div className="flex justify-between items-center mb-8">
                   <h2 className="text-2xl font-bold">Reviews</h2>
-                  <button className="flex items-center gap-2 text-navy font-bold hover:text-accent transition-colors">
+                  <button 
+                    onClick={() => { if (!user) { alert('Please login to leave a review'); return; } setShowReviewModal(true); }}
+                    className="flex items-center gap-2 text-navy font-bold hover:text-accent transition-colors"
+                  >
                     <PlusCircle size={18} /> Leave a Review
                   </button>
                 </div>
@@ -430,6 +435,15 @@ export default function Profile() {
           />
         )}
       </AnimatePresence>
+
+      {showReviewModal && host && (
+        <ReviewModal
+          hostId={host.id}
+          hostName={host.name}
+          onClose={() => setShowReviewModal(false)}
+          onSuccess={() => setShowReviewModal(false)}
+        />
+      )}
     </div>
   );
 }
