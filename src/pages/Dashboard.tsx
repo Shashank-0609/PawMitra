@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '../lib/AuthContext';
 import ChatWindow from '../components/ChatWindow';
+import ReviewModal from '../components/ReviewModal';
 import { db, storage, handleFirestoreError, OperationType } from '../lib/firebase';
 import { collection, addDoc, serverTimestamp, doc, updateDoc, onSnapshot, query, orderBy, where } from 'firebase/firestore';
 import { ref, uploadString, getDownloadURL } from 'firebase/storage';
@@ -106,6 +107,7 @@ function OwnerDashboard({ onMessageHost }: OwnerDashboardProps) {
   const [bookings, setBookings] = React.useState<any[]>([]);
   const [reviewsGiven, setReviewsGiven] = React.useState<any[]>([]);
   const [loading, setLoading] = React.useState(true);
+  const [reviewModalData, setReviewModalData] = React.useState<{ hostId: string; hostName: string } | null>(null);
 
   const stats = React.useMemo(() => ({
     upcoming: bookings.filter(b => b.status === 'accepted').length,
@@ -243,12 +245,27 @@ function OwnerDashboard({ onMessageHost }: OwnerDashboardProps) {
                     <div className="text-sm text-stone-400">{booking.dates} • <span className="text-red-400 uppercase font-bold text-[10px]">{booking.status}</span></div>
                   </div>
                 </div>
-                <button className="text-stone-300 font-bold text-sm cursor-not-allowed">Leave a Review</button>
+                <button 
+                  onClick={() => setReviewModalData({ hostId: booking.hostId, hostName: booking.hostName })}
+                  className="btn-primary py-2 px-4 text-sm"
+                >
+                  Leave a Review
+                </button>
               </div>
             ))
           )}
         </div>
       </section>
+
+      {/* Review Modal */}
+      {reviewModalData && (
+        <ReviewModal
+          hostId={reviewModalData.hostId}
+          hostName={reviewModalData.hostName}
+          onClose={() => setReviewModalData(null)}
+          onSuccess={() => setReviewModalData(null)}
+        />
+      )}
     </div>
   );
 }
@@ -421,9 +438,9 @@ function HostDashboard() {
 
   const generateAISummary = async (data: any, type: 'accept' | 'reject') => {
     try {
-      const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY as string });
+      const genAI = new GoogleGenAI({ apiKey: (import.meta.env.VITE_GEMINI_API_KEY || "") as string });
       const model = genAI.models.generateContent({
-        model: "gemini-3-flash-preview",
+        model: "gemini-2.0-flash",
         contents: `Summarize this booking ${type === 'accept' ? 'acceptance' : 'rejection'}. 
         Host: ${user?.displayName}, Guest: ${data.userName}, Pet: ${data.petName} (${data.petBreed}), Dates: ${data.dates}.
         ${type === 'reject' ? `Reason for rejection: ${data.reason}` : ''}`,
