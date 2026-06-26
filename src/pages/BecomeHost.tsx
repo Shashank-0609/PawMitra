@@ -75,9 +75,9 @@ export default function BecomeHost() {
 
   const generateAiSummary = async (text: string) => {
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
+      const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY || "" });
       const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
+        model: "gemini-2.0-flash",
         contents: `Summarize the following pet hosting experience in a professional, concise way (max 2 sentences): ${text}`,
       });
       return response.text || "No summary generated.";
