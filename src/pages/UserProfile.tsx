@@ -371,9 +371,9 @@ export default function UserProfile() {
     try {
       // 1. Generate AI Summary
       const { GoogleGenAI } = await import("@google/genai");
-      const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY as string });
+      const genAI = new GoogleGenAI({ apiKey: (import.meta.env.VITE_GEMINI_API_KEY || "") as string });
       const model = genAI.models.generateContent({
-        model: "gemini-3-flash-preview",
+        model: "gemini-2.0-flash",
         contents: `Summarize this pet owner's review of a host. Review: "${reviewText}"`,
       });
       const aiSummary = (await model).text || "No summary generated.";
